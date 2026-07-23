@@ -1,5 +1,5 @@
 {
-  "name": "onvif-camera-testing-console",
+  "name": "onvif-console",
   "version": "0.1.0",
   "private": true,
   "scripts": {
