@@ -28,10 +28,9 @@ export type Connection = {
 };
 
 export type StreamInfo = {
-  mode: "webrtc" | "snapshot" | "none";
-  embedUrl?: string;
-  snapshotEndpoint?: string;
-  rtsp?: boolean;
+  webrtc: { available: boolean; embedUrl: string | null };
+  snapshot: { available: boolean; endpoint: string };
+  default: "webrtc" | "snapshot" | "none";
 };
 
 export type TestMeta = { id: string; name: string; description: string };

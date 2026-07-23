@@ -4,42 +4,132 @@ import { useEffect, useRef, useState } from "react";
 import { API_BASE, snapshotUrl } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { Camera, MonitorPlay, VideoOff } from "lucide-react";
+import { Camera, MonitorPlay, RotateCcw, VideoOff } from "lucide-react";
 
 function SnapshotView() {
-  const [tick, setTick] = useState(0);
+  // Sequential polling: fetch the next frame only after the previous one
+  // finishes (cameras can take >1s per frame while also serving RTSP), and
+  // swap via blob URLs so the previous frame stays visible — no flicker.
+  const [src, setSrc] = useState<string | null>(null);
   const [alive, setAlive] = useState(true);
+
   useEffect(() => {
-    const t = setInterval(() => setTick((n) => n + 1), 900);
-    return () => clearInterval(t);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let prevUrl: string | null = null;
+
+    const loop = async () => {
+      if (stopped) return;
+      try {
+        const res = await fetch(`${snapshotUrl()}?t=${Date.now()}`);
+        if (!res.ok) throw new Error(String(res.status));
+        const blob = await res.blob();
+        if (stopped) return;
+        const url = URL.createObjectURL(blob);
+        setSrc(url);
+        setAlive(true);
+        if (prevUrl) URL.revokeObjectURL(prevUrl);
+        prevUrl = url;
+        timer = setTimeout(loop, 400);
+      } catch {
+        if (stopped) return;
+        setAlive(false);
+        timer = setTimeout(loop, 2000); // back off on errors
+      }
+    };
+    loop();
+
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      if (prevUrl) URL.revokeObjectURL(prevUrl);
+    };
   }, []);
+
   return (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={`${snapshotUrl()}?t=${tick}`}
-        alt="Camera snapshot"
-        className="h-full w-full object-contain"
-        onError={() => setAlive(false)}
-        onLoad={() => setAlive(true)}
-      />
+      {src && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt="Camera snapshot"
+          className="h-full w-full object-contain"
+        />
+      )}
       {!alive && (
         <div className="absolute inset-0 flex items-center justify-center text-xs text-placeholder-foreground">
-          snapshot unavailable…
+          snapshot unavailable — retrying…
         </div>
       )}
       <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium text-white">
-        <Camera className="size-3" /> Snapshot ~1 fps
+        <Camera className="size-3" /> Snapshot
       </span>
     </>
   );
 }
+
+const VIEW_PREF_KEY = "onvif-console-liveview-mode";
 
 export function LivePanel() {
   const { stream, status } = useStore();
   const moving =
     status?.moveStatus.panTilt === "MOVING" ||
     status?.moveStatus.zoom === "MOVING";
+
+  const webrtcOk = stream?.webrtc.available ?? false;
+  const snapshotOk = stream?.snapshot.available ?? false;
+
+  // Default to live (WebRTC) when it works; remember the user's choice.
+  const [mode, setMode] = useState<"webrtc" | "snapshot" | "none">("none");
+  useEffect(() => {
+    if (!stream) return;
+    const saved =
+      typeof window !== "undefined"
+        ? (localStorage.getItem(VIEW_PREF_KEY) as "webrtc" | "snapshot" | null)
+        : null;
+    if (saved === "webrtc" && webrtcOk) setMode("webrtc");
+    else if (saved === "snapshot" && snapshotOk) setMode("snapshot");
+    else setMode(stream.default);
+  }, [stream, webrtcOk, snapshotOk]);
+
+  const pick = (m: "webrtc" | "snapshot") => {
+    setMode(m);
+    localStorage.setItem(VIEW_PREF_KEY, m);
+  };
+
+  // Remount key for the WebRTC iframe. 0 = not yet started; the iframe only
+  // mounts after a producer kick so the camera opens a FRESH RTSP session.
+  // (Some cameras only emit an H.264 keyframe at session start — a consumer
+  // joining an already-running producer would show black video forever.)
+  const [streamEpoch, setStreamEpoch] = useState(0);
+  const restartStream = async () => {
+    try {
+      await fetch(`${API_BASE}/api/stream/kick`, { method: "POST" });
+    } catch {
+      /* best effort */
+    }
+    setStreamEpoch((n) => n + 1);
+  };
+
+  // Auto-kick whenever we enter (or return to) live mode.
+  useEffect(() => {
+    if (mode !== "webrtc") {
+      setStreamEpoch(0);
+      return;
+    }
+    let stale = false;
+    (async () => {
+      try {
+        await fetch(`${API_BASE}/api/stream/kick`, { method: "POST" });
+      } catch {
+        /* stream may not exist yet — mount anyway */
+      }
+      if (!stale) setStreamEpoch((n) => n + 1);
+    })();
+    return () => {
+      stale = true;
+    };
+  }, [mode]);
 
   return (
     <div className="overflow-hidden rounded-squircle-xl rounded-xl border bg-card">
@@ -48,39 +138,83 @@ export function LivePanel() {
           <MonitorPlay className="size-3.5 text-primary" />
           Live view
         </span>
-        {status && (
-          <span
-            className={cn(
-              "inline-flex items-center gap-1.5 font-mono text-[10px]",
-              moving ? "text-primary" : "text-placeholder-foreground",
-            )}
-          >
+        <div className="flex items-center gap-2">
+          {mode === "webrtc" && (
+            <button
+              onClick={restartStream}
+              title="Restart stream (fixes a stuck/black player)"
+              aria-label="Restart stream"
+              className="text-placeholder-foreground transition-colors hover:text-foreground"
+            >
+              <RotateCcw className="size-3" />
+            </button>
+          )}
+          {/* live / snapshot switch — only when both paths are available */}
+          {webrtcOk && snapshotOk && (
+            <div className="flex overflow-hidden rounded-full border">
+              {(
+                [
+                  ["webrtc", "Live"],
+                  ["snapshot", "Snapshot"],
+                ] as const
+              ).map(([m, label]) => (
+                <button
+                  key={m}
+                  onClick={() => pick(m)}
+                  className={cn(
+                    "px-2 py-0.5 text-[10px] font-medium transition-colors",
+                    mode === m
+                      ? "bg-primary text-primary-foreground"
+                      : "text-soft-foreground hover:bg-muted",
+                  )}
+                  aria-pressed={mode === m}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {status && (
             <span
               className={cn(
-                "size-1.5 rounded-full",
-                moving ? "status-pulse bg-primary" : "bg-success",
+                "inline-flex items-center gap-1.5 font-mono text-[10px]",
+                moving ? "text-primary" : "text-placeholder-foreground",
               )}
-            />
-            {moving ? "MOVING" : "IDLE"}
-          </span>
-        )}
+            >
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  moving ? "status-pulse bg-primary" : "bg-success",
+                )}
+              />
+              {moving ? "MOVING" : "IDLE"}
+            </span>
+          )}
+        </div>
       </div>
       <div className="relative aspect-video w-full bg-black">
-        {stream?.mode === "webrtc" && stream.embedUrl ? (
-          <iframe
-            src={stream.embedUrl}
-            className="h-full w-full border-0"
-            allow="autoplay"
-            title="Live camera stream"
-          />
-        ) : stream?.mode === "snapshot" ? (
+        {mode === "webrtc" && stream?.webrtc.embedUrl ? (
+          streamEpoch > 0 ? (
+            <iframe
+              key={streamEpoch}
+              src={stream.webrtc.embedUrl}
+              className="h-full w-full border-0"
+              allow="autoplay"
+              title="Live camera stream"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-xs text-placeholder-foreground">
+              starting stream…
+            </div>
+          )
+        ) : mode === "snapshot" ? (
           <SnapshotView />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-placeholder-foreground">
             <VideoOff className="size-6" />
             <span className="text-xs">
-              Live stream placeholder — install{" "}
-              <code className="font-mono">go2rtc</code> for WebRTC video
+              No video available — install{" "}
+              <code className="font-mono">go2rtc</code> for WebRTC live video
             </span>
           </div>
         )}

@@ -26,7 +26,8 @@ and export a printable conformance report.
   individually or run everything at once
 - **MoveStatus transition verification** — every positioning move is polled
   for the `IDLE → MOVING → IDLE` sequence
-- **Live view** — WebRTC (go2rtc) or ~1 fps ONVIF snapshot fallback
+- **Live view** — real-time WebRTC video (go2rtc) with an ONVIF-snapshot
+  mode as a switchable alternative; defaults to live when available
 - **Pan/Tilt visualizer** — real-time position map with motion trail
 - **Manual control** — press-and-hold joystick, zoom, home (locked during runs)
 - **ONVIF call ticker** — every command issued to the camera, with timing and
@@ -57,7 +58,8 @@ Steps:
    for this OS/arch from https://github.com/AlexxIT/go2rtc/releases/latest
    (asset names look like go2rtc_mac_arm64.zip, go2rtc_linux_amd64, …),
    unzip if needed, and place the executable at backend/bin/go2rtc
-   (chmod +x). Without it the console falls back to ~1 fps snapshot polling.
+   (chmod +x). Verify with `backend/bin/go2rtc --version`. Without it the
+   console falls back to ~1 fps snapshot polling.
 5. Start: `./start.sh` (or `cd backend && .venv/bin/uvicorn server:app
    --host 0.0.0.0 --port 5800`).
 6. Verify: `curl -s -o /dev/null -w "%{http_code}" localhost:5800/` prints
@@ -108,13 +110,28 @@ pnpm serve          # the sidecar (in another terminal)
 
 ### Live video (WebRTC)
 
-If a `go2rtc` binary is on `PATH` (or a go2rtc instance is already listening
-on `:1984`, e.g. the docker-compose service), the sidecar wires the camera's
-RTSP stream into it on connect and the console embeds real-time WebRTC video.
-Without it, the console falls back to ONVIF snapshot polling automatically.
+The sidecar looks for a `go2rtc` binary on `PATH` **or at
+`backend/bin/go2rtc`** (or an instance already listening on `:1984`, e.g. the
+docker-compose service). When found, it wires the camera's RTSP stream into
+go2rtc on connect and the console shows real-time WebRTC video, with a
+Live / Snapshot switch in the panel (preference remembered). Without go2rtc,
+the console automatically uses ONVIF snapshot polling.
+
+To install: grab the binary for your OS/arch from
+[go2rtc releases](https://github.com/AlexxIT/go2rtc/releases/latest) and place
+it at `backend/bin/go2rtc` (`chmod +x`).
 
 Env overrides: `GO2RTC_API` (default `http://127.0.0.1:1984`) and
 `GO2RTC_PUBLIC_URL` (browser-facing embed URL, when they differ).
+
+Implementation notes for oddball cameras (already handled automatically):
+
+- Some cameras emit an H.264 keyframe **only at RTSP session start**. The UI
+  therefore "kicks" the go2rtc producer (fresh RTSP session) every time the
+  live player mounts, and the panel has a manual restart button
+  (`POST /api/stream/kick`) for stubborn cases.
+- On multi-interface hosts (VPNs etc.) the spawned go2rtc is configured with
+  an explicit `127.0.0.1` ICE candidate, otherwise local WebRTC can fail.
 
 ## Deployment
 

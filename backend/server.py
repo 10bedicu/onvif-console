@@ -244,18 +244,33 @@ def _go2rtc_running() -> bool:
         return False
 
 
+def _find_go2rtc_binary() -> str | None:
+    """Look on PATH first, then for a project-local backend/bin/go2rtc."""
+    binary = shutil.which("go2rtc")
+    if binary:
+        return binary
+    local = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bin", "go2rtc")
+    if os.path.isfile(local) and os.access(local, os.X_OK):
+        return local
+    return None
+
+
 def _ensure_go2rtc() -> bool:
     """Use an already-running go2rtc, or spawn one if the binary exists."""
     global _go2rtc_proc
     if _go2rtc_running():
         return True
-    binary = shutil.which("go2rtc")
+    binary = _find_go2rtc_binary()
     if not binary:
         return False
     cfg = os.path.join(tempfile.gettempdir(), "onvif-console-go2rtc.yaml")
     with open(cfg, "w") as f:
+        # The explicit loopback candidate matters: on multi-interface hosts
+        # (VPNs, multiple NICs) go2rtc may otherwise only offer ICE candidates
+        # on interfaces the local browser can't reach, breaking WebRTC.
         f.write('api:\n  listen: "127.0.0.1:1984"\n'
                 'webrtc:\n  listen: ":18555"\n'
+                '  candidates:\n    - 127.0.0.1:18555\n'
                 'rtsp:\n  listen: ""\n')
     _go2rtc_proc = subprocess.Popen(
         [binary, "-config", cfg],
@@ -268,28 +283,66 @@ def _ensure_go2rtc() -> bool:
 
 
 def _setup_stream() -> dict:
-    """Called on connect: wire the camera RTSP into go2rtc if possible."""
+    """Called on connect: probe both video paths so the UI can offer a
+    live/snapshot toggle. WebRTC (via go2rtc) is the preferred default.
+
+    Both URIs are resolved once here and cached — resolving them per snapshot
+    frame would issue overlapping SOAP calls on the shared zeep client, which
+    intermittently fail."""
+    app.state.snapshot_uri = _snapshot_uri()
     rtsp = _rtsp_uri()
-    info: dict = {"mode": "none", "rtsp": rtsp is not None}
+    webrtc_url = None
     if rtsp and _ensure_go2rtc():
         try:
             httpx.put(f"{GO2RTC_API}/api/streams",
                       params={"name": STREAM_NAME, "src": rtsp}, timeout=3)
-            info = {"mode": "webrtc",
-                    "embedUrl": f"{GO2RTC_PUBLIC}/stream.html?src={STREAM_NAME}&mode=webrtc,mse",
-                    "rtsp": True}
-            app.state.stream_info = info
-            return info
+            # mode=webrtc ONLY (no mse fallback): each extra mode opens another
+            # go2rtc consumer, and any lingering consumer keeps the RTSP
+            # producer alive across UI reloads. Cameras that only send an IDR
+            # frame at RTSP session start then show black video forever. A
+            # single consumer guarantees producer teardown -> fresh keyframe.
+            webrtc_url = f"{GO2RTC_PUBLIC}/stream.html?src={STREAM_NAME}&mode=webrtc"
         except Exception:
             pass
-    if _snapshot_uri():
-        info = {"mode": "snapshot", "snapshotEndpoint": "/api/snapshot", "rtsp": rtsp is not None}
+    snapshot_ok = app.state.snapshot_uri is not None
+    info = {
+        "webrtc": {"available": webrtc_url is not None, "embedUrl": webrtc_url},
+        "snapshot": {"available": snapshot_ok, "endpoint": "/api/snapshot"},
+        "default": "webrtc" if webrtc_url else ("snapshot" if snapshot_ok else "none"),
+    }
     app.state.stream_info = info
     return info
 
 
 def _stream_info() -> dict:
-    return getattr(app.state, "stream_info", {"mode": "none"})
+    return getattr(
+        app.state, "stream_info",
+        {"webrtc": {"available": False, "embedUrl": None},
+         "snapshot": {"available": False, "endpoint": "/api/snapshot"},
+         "default": "none"})
+
+
+@app.post("/api/stream/kick")
+def stream_kick():
+    """Force-restart the go2rtc producer (drops all consumers). Useful when a
+    camera only emits keyframes on RTSP session start and the player is stuck
+    on a black frame."""
+    rtsp = None
+    try:
+        r = httpx.get(f"{GO2RTC_API}/api/streams", timeout=2).json()
+        prods = (r.get(STREAM_NAME) or {}).get("producers") or []
+        rtsp = prods[0]["url"] if prods else None
+    except Exception:
+        pass
+    if not rtsp:
+        raise HTTPException(status_code=404, detail="no go2rtc stream")
+    try:
+        httpx.delete(f"{GO2RTC_API}/api/streams", params={"src": STREAM_NAME}, timeout=2)
+        httpx.put(f"{GO2RTC_API}/api/streams",
+                  params={"name": STREAM_NAME, "src": rtsp}, timeout=3)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e)[:200])
+    return {"ok": True}
 
 
 def _teardown_stream():
@@ -309,7 +362,7 @@ def _kill_go2rtc():
 
 @app.get("/api/snapshot")
 def snapshot():
-    uri = _snapshot_uri()
+    uri = getattr(app.state, "snapshot_uri", None)
     if not uri:
         raise HTTPException(status_code=404, detail="no snapshot uri")
     conn = engine().connection
