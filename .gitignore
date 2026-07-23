@@ -1,0 +1,14 @@
+# python
+backend/.venv/
+__pycache__/
+.pytest_cache/
+
+# env / secrets
+.env
+
+# node / next
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo

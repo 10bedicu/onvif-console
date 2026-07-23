@@ -1,0 +1,18 @@
+services:
+  console:
+    build: .
+    network_mode: host # camera + WebRTC live on the LAN; host networking keeps it simple
+    environment:
+      - GO2RTC_API=http://127.0.0.1:1984
+      # URL the *browser* uses for the WebRTC embed. With host networking the
+      # default (same as GO2RTC_API) works from the same machine; set this to
+      # http://<server-ip>:1984 when opening the console from another device.
+      - GO2RTC_PUBLIC_URL=${GO2RTC_PUBLIC_URL:-http://127.0.0.1:1984}
+    restart: unless-stopped
+
+  # Optional WebRTC relay for the live view. Remove this service to fall back
+  # to snapshot mode.
+  go2rtc:
+    image: alexxit/go2rtc
+    network_mode: host # WebRTC needs direct UDP; host networking avoids NAT pain
+    restart: unless-stopped

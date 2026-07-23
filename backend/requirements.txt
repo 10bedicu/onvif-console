@@ -1,0 +1,5 @@
+onvif-zeep
+pytest
+fastapi
+uvicorn
+requests

@@ -1,0 +1,304 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/figtree";
+@import "@fontsource-variable/geist-mono";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+    color-scheme: light;
+    --font-size-scale: 1;
+
+    /* Primary palette (careui: emerald) */
+    --primary-50:  var(--color-emerald-50);
+    --primary-100: var(--color-emerald-100);
+    --primary-200: var(--color-emerald-200);
+    --primary-300: var(--color-emerald-300);
+    --primary-400: var(--color-emerald-400);
+    --primary-500: var(--color-emerald-500);
+    --primary-600: var(--color-emerald-600);
+    --primary-700: var(--color-emerald-700);
+    --primary-800: var(--color-emerald-800);
+    --primary-900: var(--color-emerald-900);
+    --primary-950: var(--color-emerald-950);
+
+    --radius: 0.625rem;
+
+    --background: var(--color-white);
+    --soft-background: var(--color-neutral-50);
+    --muted-background: var(--color-neutral-100);
+    --strong-background: var(--color-neutral-200);
+
+    --muted: var(--color-neutral-100);
+
+    --foreground: var(--color-neutral-950);
+    --muted-foreground: var(--color-neutral-700);
+    --soft-foreground: var(--color-neutral-600);
+    --disabled-foreground: var(--color-neutral-300);
+    --placeholder-foreground: var(--color-neutral-500);
+    --inverse-foreground: var(--color-white);
+
+    --card: var(--color-white);
+    --card-foreground: var(--color-neutral-950);
+
+    --popover: var(--color-white);
+    --popover-foreground: var(--color-neutral-950);
+
+    --primary: var(--color-primary-800);
+    --primary-foreground: var(--color-primary-50);
+
+    --secondary: var(--color-neutral-100);
+    --secondary-foreground: var(--color-neutral-900);
+
+    --accent: var(--color-neutral-100);
+    --accent-foreground: var(--color-neutral-900);
+
+    --destructive: var(--color-red-600);
+    --destructive-foreground: var(--color-red-50);
+
+    --warning: var(--color-amber-600);
+    --success: var(--color-emerald-600);
+
+    --soft-border: var(--color-neutral-100);
+    --border: var(--color-neutral-200);
+    --strong-border: var(--color-neutral-300);
+    --stronger-border: var(--color-neutral-400);
+    --inverse-border: var(--color-white);
+
+    --input: var(--color-neutral-300);
+    --ring: --alpha(var(--color-indigo-500) / 75%);
+
+    --sidebar: var(--color-neutral-100);
+    --sidebar-foreground: var(--color-neutral-950);
+}
+
+.dark {
+    color-scheme: dark;
+    --background: var(--color-neutral-950);
+    --soft-background: var(--color-neutral-900);
+    --muted-background: var(--color-neutral-800);
+    --strong-background: var(--color-neutral-700);
+
+    --muted: var(--color-neutral-800);
+
+    --foreground: var(--color-neutral-50);
+    --muted-foreground: var(--color-neutral-200);
+    --soft-foreground: var(--color-neutral-300);
+    --disabled-foreground: var(--color-neutral-700);
+    --placeholder-foreground: var(--color-neutral-600);
+    --inverse-foreground: var(--color-black);
+
+    --card: var(--color-neutral-900);
+    --card-foreground: var(--color-white);
+
+    --popover: var(--color-neutral-950);
+    --popover-foreground: var(--color-neutral-50);
+
+    --primary: var(--color-primary-400);
+    --primary-foreground: var(--color-primary-950);
+
+    --secondary: var(--color-neutral-800);
+    --secondary-foreground: var(--color-neutral-50);
+
+    --accent: var(--color-neutral-700);
+    --accent-foreground: var(--color-neutral-50);
+
+    --destructive: var(--color-red-400);
+    --destructive-foreground: var(--color-red-50);
+
+    --warning: var(--color-amber-400);
+    --success: var(--color-emerald-400);
+
+    --soft-border: --alpha(var(--color-white) / 5%);
+    --border: --alpha(var(--color-white) / 9%);
+    --strong-border: --alpha(var(--color-white) / 15%);
+    --stronger-border: --alpha(var(--color-white) / 22%);
+    --inverse-border: var(--color-neutral-50);
+
+    --input: --alpha(var(--color-white) / 15%);
+    --ring: --alpha(var(--color-indigo-500) / 75%);
+
+    --sidebar: var(--color-neutral-900);
+    --sidebar-foreground: var(--color-neutral-50);
+}
+
+@theme inline {
+    --font-sans: 'Figtree Variable', sans-serif;
+    --font-mono: 'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --font-heading: var(--font-sans);
+
+    --color-background: var(--background);
+    --color-soft-background: var(--soft-background);
+    --color-muted-background: var(--muted-background);
+    --color-strong-background: var(--strong-background);
+    --color-muted: var(--muted);
+
+    --color-foreground: var(--foreground);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-soft-foreground: var(--soft-foreground);
+    --color-disabled-foreground: var(--disabled-foreground);
+    --color-placeholder-foreground: var(--placeholder-foreground);
+    --color-inverse-foreground: var(--inverse-foreground);
+
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+
+    --color-border: var(--border);
+    --color-strong-border: var(--strong-border);
+    --color-stronger-border: var(--stronger-border);
+    --color-soft-border: var(--soft-border);
+    --color-inverse-border: var(--inverse-border);
+
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-warning: var(--warning);
+    --color-success: var(--success);
+
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+    --radius-2xl: calc(var(--radius) + 8px);
+    --radius-3xl: calc(var(--radius) + 12px);
+    --radius-4xl: calc(var(--radius) + 16px);
+
+    --color-primary-50: var(--primary-50);
+    --color-primary-100: var(--primary-100);
+    --color-primary-200: var(--primary-200);
+    --color-primary-300: var(--primary-300);
+    --color-primary-400: var(--primary-400);
+    --color-primary-500: var(--primary-500);
+    --color-primary-600: var(--primary-600);
+    --color-primary-700: var(--primary-700);
+    --color-primary-800: var(--primary-800);
+    --color-primary-900: var(--primary-900);
+    --color-primary-950: var(--primary-950);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply font-sans bg-background text-foreground antialiased;
+  }
+  html {
+    @apply font-sans;
+    font-size: calc(100% * var(--font-size-scale));
+    scroll-behavior: smooth;
+  }
+
+  h1, h2, h3, h4 {
+    @apply text-balance;
+  }
+  p {
+    @apply text-pretty;
+  }
+}
+
+/* Squircle utilities (from careui) */
+
+@utility rounded-squircle-sm {
+  @supports (corner-shape: superellipse(1.6)) {
+    @apply rounded-sm!;
+    corner-shape: superellipse(1.6);
+  }
+}
+
+@utility rounded-squircle-md {
+  @supports (corner-shape: superellipse(1.6)) {
+    @apply rounded-lg!;
+    corner-shape: superellipse(1.6);
+  }
+}
+
+@utility rounded-squircle-lg {
+  @supports (corner-shape: superellipse(1.6)) {
+    @apply rounded-lg!;
+    corner-shape: superellipse(1.6);
+  }
+}
+
+@utility rounded-squircle-xl {
+  @supports (corner-shape: superellipse(1.6)) {
+    @apply rounded-xl!;
+    corner-shape: superellipse(1.6);
+  }
+}
+
+@utility rounded-squircle-2xl {
+  @supports (corner-shape: superellipse(1.6)) {
+    @apply rounded-xl!;
+    corner-shape: superellipse(1.6);
+  }
+}
+
+@utility rounded-squircle-full {
+  @supports (corner-shape: superellipse(1)) {
+    @apply rounded-full!;
+    corner-shape: superellipse(1);
+  }
+}
+
+/* ── Console-specific ──────────────────────────────────────────────────── */
+
+/* Streaming log viewport */
+.log-stream {
+  @apply font-mono text-[12px] leading-5;
+}
+
+/* Pulsing "running" indicator */
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.status-pulse {
+  animation: status-pulse 1.2s ease-in-out infinite;
+}
+
+/* Call ticker marquee-ish fade edges */
+.ticker-fade {
+  mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent);
+}
+
+/* ── Print (report page) ───────────────────────────────────────────────── */
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  html {
+    font-size: 12px;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .print-hidden {
+    display: none !important;
+  }
+  .print-break-before {
+    break-before: page;
+  }
+  .print-avoid-break {
+    break-inside: avoid;
+  }
+}
