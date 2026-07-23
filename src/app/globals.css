@@ -280,18 +280,26 @@
 }
 
 /* ── Print (report page) ───────────────────────────────────────────────── */
+/*
+ * Clean, modern document print — keeps the app's sans typeface and layout but
+ * renders as a tidy outline-based report so it looks complete even when the
+ * browser's "Background graphics" option is OFF (colored fills may not print,
+ * so we rely on borders + colored text + outlined pills instead). Forces a
+ * white page regardless of the app's light/dark theme, and text stays crisp
+ * and selectable (no canvas rasterization).
+ */
 
 @media print {
   @page {
-    margin: 14mm;
+    margin: 13mm 15mm;
   }
   html {
-    font-size: 12px;
+    font-size: 10pt;
   }
   body {
-    background: white !important;
-    color: black !important;
+    background: #fff !important;
   }
+
   .print-hidden {
     display: none !important;
   }
@@ -300,5 +308,140 @@
   }
   .print-avoid-break {
     break-inside: avoid;
+  }
+
+  /* Force a light, ink-on-white document even from the dark theme. */
+  .report-doc,
+  .report-doc * {
+    color: #18181b !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  .report-doc {
+    line-height: 1.45;
+  }
+  /* Drop background fills (unreliable in print) — outlines carry the design. */
+  .report-doc [class*="bg-"] {
+    background: transparent !important;
+  }
+  .report-doc .border,
+  .report-doc [class*="border-"] {
+    border-color: #d4d4d8 !important;
+  }
+
+  /* Print-safe semantic colors (override the theme tokens). */
+  .report-doc .text-success { color: #047857 !important; }
+  .report-doc .text-destructive { color: #b91c1c !important; }
+  .report-doc .text-warning { color: #a16207 !important; }
+  .report-doc .text-primary { color: #047857 !important; }
+  .report-doc .text-placeholder-foreground { color: #71717a !important; }
+  .report-doc .text-soft-foreground,
+  .report-doc .text-muted-foreground { color: #52525b !important; }
+
+  /* Masthead: emerald keyline under the title block. */
+  .report-masthead {
+    border-bottom: 2px solid #047857;
+    padding-bottom: 9pt;
+    margin-bottom: 14pt;
+  }
+
+  /* Sections. */
+  .report-section {
+    margin-bottom: 13pt;
+    break-inside: avoid;
+  }
+  .section-title {
+    font-size: 11pt !important;
+    margin-bottom: 6pt !important;
+  }
+
+  /* Summary: keep the tile row, outline each tile. */
+  .summary-grid {
+    gap: 8pt !important;
+  }
+  .summary-grid .verdict-tile,
+  .summary-grid .stat-tile {
+    border: 1px solid #d4d4d8 !important;
+    border-radius: 8px !important;
+    padding: 8pt 10pt !important;
+    break-inside: avoid;
+  }
+  .summary-grid .verdict-tile {
+    border-left-width: 4px !important;
+  }
+  .summary-grid .verdict-tile span:first-child,
+  .summary-grid .stat-tile span:first-child {
+    font-size: 15pt !important;
+    line-height: 1.1;
+  }
+
+  /* Capability grid: crisp outlined block. */
+  .cap-grid {
+    border: 1px solid #d4d4d8 !important;
+    border-radius: 8px !important;
+  }
+  .cap-row {
+    border-bottom: 1px solid #ececee !important;
+  }
+
+  /* Per-test blocks: outlined cards with a header rule. */
+  .test-block {
+    border: 1px solid #d4d4d8 !important;
+    border-radius: 8px !important;
+    margin-bottom: 8pt;
+    break-inside: avoid;
+    overflow: hidden;
+  }
+  .test-block .test-head {
+    border-bottom: 1px solid #ececee !important;
+    padding: 5pt 9pt !important;
+  }
+  .test-block .test-name {
+    font-size: 10.5pt !important;
+    font-weight: 600;
+  }
+  .test-block ul {
+    padding: 5pt 9pt !important;
+  }
+  .check-row {
+    font-size: 8.5pt !important;
+  }
+
+  /* Outlined status pills (fills won't print reliably). */
+  .onvif-status-badge {
+    border: 1px solid currentColor !important;
+    background: transparent !important;
+    padding: 0 6px !important;
+  }
+
+  /* Warning callout: amber left rule. */
+  .warn-box {
+    border: 1px solid #e4c990 !important;
+    border-left: 3px solid #a16207 !important;
+    border-radius: 6px !important;
+    margin: 0 9pt 7pt !important;
+    padding: 4pt 8pt !important;
+  }
+
+  /* Test logs: hidden on screen (<details>), shown compact in print. */
+  .test-block .print-logs {
+    display: block !important;
+    font-family: "Geist Mono Variable", ui-monospace, monospace;
+    font-size: 7.5pt;
+    line-height: 1.4;
+    margin: 0 9pt 7pt;
+    padding: 5pt 9pt;
+    border-left: 2px solid #e4e4e7;
+  }
+  .test-block .print-logs > div {
+    margin-bottom: 0.5pt;
+  }
+
+  .report-footer {
+    margin-top: 14pt;
+    border-top: 1px solid #d4d4d8 !important;
+    padding-top: 6pt;
+    font-size: 8pt !important;
+    color: #71717a !important;
   }
 }
