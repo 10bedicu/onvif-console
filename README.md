@@ -68,7 +68,7 @@ running on the machine that will host the console:
 
 ```text
 Set up and run the ONVIF Camera Testing Console from
-https://github.com/ohcnetwork/onvif-console (or the local checkout if it already
+https://github.com/10bedicu/onvif-console (or the local checkout if it already
 exists).
 
 Requirements: Python 3.11+, Node 20+ with pnpm. The machine must be on the
