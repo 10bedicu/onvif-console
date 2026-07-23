@@ -45,12 +45,15 @@ export type TestStatus =
 
 export type Check = { name: string; passed: boolean; detail: string };
 
+export type Warning = { name: string; detail: string };
+
 export type LogEntry = { ts: number; level: string; msg: string };
 
 export type TestResult = {
   id: string;
   status: TestStatus;
   checks: Check[];
+  warnings: Warning[];
   logs: LogEntry[];
   startedAt: number | null;
   finishedAt: number | null;

@@ -19,7 +19,8 @@ function LogLine({ level, msg, ts }: { level: string; msg: string; ts: number })
         className={cn(
           level === "success" && "text-success",
           level === "error" && "text-destructive",
-          level === "note" && "text-warning",
+          level === "warn" && "text-warning",
+          level === "note" && "text-soft-foreground",
           level === "info" && "text-muted-foreground",
         )}
       >
@@ -43,12 +44,17 @@ export function TestCard({ test }: { test: TestMeta }) {
   const wasRunning = useRef(false);
   const logRef = useRef<HTMLDivElement>(null);
 
-  // Auto-expand while running; keep open after a failure.
+  const warnings = result?.warnings ?? [];
+
+  // Auto-expand while running; collapse a clean pass, but keep open when the
+  // pass carried warnings (or on failure) so the caveat stays visible.
   useEffect(() => {
     if (status === "running" && !wasRunning.current) setOpen(true);
-    if (wasRunning.current && status === "passed") setOpen(false);
+    if (wasRunning.current && status === "passed" && warnings.length === 0) {
+      setOpen(false);
+    }
     wasRunning.current = status === "running";
-  }, [status]);
+  }, [status, warnings.length]);
 
   // Follow the log tail.
   useEffect(() => {
@@ -82,7 +88,7 @@ export function TestCard({ test }: { test: TestMeta }) {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="truncate text-sm font-medium">{test.name}</span>
-              <StatusBadge status={status} />
+              <StatusBadge status={status} warnings={warnings.length} />
               {result?.durationMs != null && status !== "running" && (
                 <span className="font-mono text-[11px] text-placeholder-foreground">
                   {(result.durationMs / 1000).toFixed(1)}s
@@ -144,6 +150,19 @@ export function TestCard({ test }: { test: TestMeta }) {
                     <span className="font-mono text-placeholder-foreground">
                       {c.detail}
                     </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {warnings.length > 0 && (
+            <div className="mb-3 flex flex-col gap-1 rounded-squircle-md rounded-md border border-warning/30 bg-warning/5 px-3 py-2">
+              {warnings.map((w, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs">
+                  <span className="mt-px text-warning">✱</span>
+                  <span className="font-medium text-warning">{w.name}</span>
+                  {w.detail && (
+                    <span className="text-soft-foreground">{w.detail}</span>
                   )}
                 </div>
               ))}

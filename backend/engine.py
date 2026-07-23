@@ -154,6 +154,7 @@ class TestResult:
     id: str
     status: str = "pending"        # pending | running | passed | failed | skipped | error
     checks: list = field(default_factory=list)
+    warnings: list = field(default_factory=list)   # non-fatal advisories
     logs: list = field(default_factory=list)
     startedAt: float | None = None
     finishedAt: float | None = None
@@ -163,6 +164,7 @@ class TestResult:
         return {
             "id": self.id, "status": self.status,
             "checks": [c.__dict__ for c in self.checks],
+            "warnings": self.warnings,
             "logs": self.logs,
             "startedAt": self.startedAt, "finishedAt": self.finishedAt,
             "durationMs": round((self.finishedAt - self.startedAt) * 1000)
@@ -207,6 +209,12 @@ class TestCtx:
         self.result.checks.append(Check(name, passed, detail))
         self.log(f"{'✓' if passed else '✗'} {name}" + (f" — {detail}" if detail else ""),
                  "success" if passed else "error")
+
+    def warn(self, name: str, detail: str = ""):
+        """Record a non-fatal advisory. The test can still pass, but the UI
+        surfaces it (e.g. 'Passed ✱') so the caveat isn't lost."""
+        self.result.warnings.append({"name": name, "detail": detail})
+        self.log(f"⚠ {name}" + (f" — {detail}" if detail else ""), "warn")
 
     def skip(self, reason: str):
         raise SkipTest(reason)
@@ -355,7 +363,9 @@ def t_zoom(ctx: TestCtx):
               moved_by_status or moved_by_pos,
               f"status={seq_str(obs, 'zoom')}  zoomPos {z0} → {z1}")
     if not moved_by_pos:
-        ctx.log("Camera does not report a changing zoom position readback", "note")
+        ctx.warn("Zoom position not reported",
+                 "camera keeps zoom readback constant; actuation verified via "
+                 "MoveStatus instead")
     ctx.step("Zooming back out…")
     cam.absolute_move(*center, cam.zoom_target(0.0))
     observe(ctx, axis="zoom")
@@ -388,8 +398,12 @@ def t_continuous_move(ctx: TestCtx):
               f"{fmt(p0)} → {fmt(p_during)}")
     ctx.check("Motion halts after Stop",
               abs(cam.position()[0] - p1[0]) < 0.02, f"stopped near {fmt(p1)}")
-    ctx.log(f"MoveStatus reported MOVING during continuous move: {saw_moving} "
-            "(optional per ONVIF — some cameras only track positioning moves)", "note")
+    if saw_moving:
+        ctx.log("MoveStatus reported MOVING during the continuous move", "note")
+    else:
+        ctx.warn("MoveStatus stayed IDLE during continuous move",
+                 "optional per ONVIF — this camera only tracks MoveStatus for "
+                 "positioning moves; actuation verified via position change")
 
 
 def t_presets(ctx: TestCtx):
@@ -456,8 +470,8 @@ def t_home(ctx: TestCtx):
         ctx.check("SetHomePosition accepted", True, f"home={fmt(home)}")
     except Exception as e:
         set_home_ok = False
-        ctx.log(f"SetHomePosition not supported ({str(e)[:60]}); "
-                "testing GotoHome against factory home", "note")
+        ctx.warn("SetHomePosition not supported",
+                 f"{str(e)[:60]}; GotoHome tested against factory home instead")
 
     ctx.step("Moving away, then GotoHomePosition…")
     cam.absolute_move(*cam.abs_pantilt(0.35, 0.40), 0.0)

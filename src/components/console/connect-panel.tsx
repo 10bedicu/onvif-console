@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useStore } from "@/lib/store";
+import { capabilityList } from "@/lib/capabilities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -137,31 +138,32 @@ export function ConnectPanel() {
 export function CapabilityChips() {
   const { connection } = useStore();
   if (!connection) return null;
-  const c = connection.capabilities;
-  const items: { label: string; on: boolean }[] = [
-    { label: "Absolute P/T", on: c.absolutePanTilt },
-    { label: "Relative P/T", on: c.relativePanTilt },
-    { label: "Continuous P/T", on: c.continuousPanTilt },
-    { label: "Zoom", on: c.absoluteZoom },
-    { label: "Home", on: c.homeSupported },
-    { label: `${c.maxPresets} presets`, on: c.maxPresets > 0 },
-  ];
+  const items = capabilityList(connection.capabilities);
+  const supported = items.filter((i) => i.on).length;
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      <span className="mr-0.5 text-[11px] font-medium text-placeholder-foreground">
+        Capabilities {supported}/{items.length}
+      </span>
       {items.map((i) => (
         <Badge
           key={i.label}
-          variant={i.on ? "secondary" : "ghost"}
+          variant="outline"
+          title={i.on ? i.value : "Not advertised by this camera"}
           className={
-            i.on ? "text-foreground" : "text-disabled-foreground line-through"
+            i.on
+              ? "border-success/30 text-foreground"
+              : "border-dashed text-placeholder-foreground"
           }
         >
           {i.on ? (
             <CircleCheck className="text-success" />
           ) : (
-            <CircleX />
+            <CircleX className="text-placeholder-foreground" />
           )}
-          {i.label}
+          {i.label === "Presets" && i.on
+            ? `Presets · ${connection.capabilities.maxPresets}`
+            : i.short}
         </Badge>
       ))}
     </div>

@@ -49,16 +49,22 @@ const config: Record<
 
 export function StatusBadge({
   status,
+  warnings = 0,
   className,
 }: {
   status: TestStatus;
+  warnings?: number;
   className?: string;
 }) {
   const c = config[status] ?? config.pending;
+  const withWarn = status === "passed" && warnings > 0;
   return (
     <span
+      title={
+        withWarn ? `Passed with ${warnings} warning${warnings === 1 ? "" : "s"}` : undefined
+      }
       className={cn(
-        "inline-flex h-5 items-center gap-1 rounded-4xl rounded-squircle-full px-2 text-xs font-medium",
+        "onvif-status-badge inline-flex h-5 items-center gap-1 rounded-4xl rounded-squircle-full px-2 text-xs font-medium",
         c.className,
         className,
       )}
@@ -67,6 +73,11 @@ export function StatusBadge({
         className={cn("size-3", status === "running" && "animate-spin")}
       />
       {c.label}
+      {withWarn && (
+        <span className="ml-0.5 font-bold text-warning" aria-label="with warnings">
+          ✱
+        </span>
+      )}
     </span>
   );
 }

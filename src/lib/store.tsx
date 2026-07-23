@@ -75,6 +75,7 @@ function emptyResult(id: string): TestResult {
     id,
     status: "pending",
     checks: [],
+    warnings: [],
     logs: [],
     startedAt: null,
     finishedAt: null,
