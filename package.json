@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "lint": "eslint",
-    "serve": "cd backend && .venv/bin/uvicorn server:app --port 5800"
+    "serve": "cd backend && .venv/bin/uvicorn server:app --port 5800",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {
     "@fontsource-variable/figtree": "^5.2.10",
@@ -27,6 +28,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "puppeteer-core": "^25.3.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
