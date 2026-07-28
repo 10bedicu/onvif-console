@@ -54,7 +54,9 @@ _go2rtc_proc: subprocess.Popen | None = None
 def store() -> HistoryStore:
     global _store
     if _store is None:
-        _store = HistoryStore()
+        # ONVIF_DB_PATH lets deployments point the history DB at a mounted volume.
+        db_path = os.environ.get("ONVIF_DB_PATH")
+        _store = HistoryStore(db_path) if db_path else HistoryStore()
     return _store
 
 
@@ -191,6 +193,17 @@ def history(camera_key: str | None = None, model: str | None = None,
 @app.get("/api/history/cameras")
 def history_cameras():
     return {"cameras": store().list_cameras()}
+
+
+@app.get("/api/history/trend")
+def history_trend(camera_key: str | None = None, model: str | None = None,
+                  limit: int = 20):
+    return {
+        # canonical test order so the trend matrix columns are stable
+        "tests": [{"id": t.id, "name": t.name} for t in TESTS],
+        "runs": store().trend(camera_key=camera_key, model=model,
+                              limit=min(limit, 100)),
+    }
 
 
 @app.get("/api/history/{run_id}")

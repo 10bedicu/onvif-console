@@ -20,3 +20,6 @@ backend/bin/
 # runtime data
 backend/data/
 backend/bin/go2rtc
+
+# docker-compose bind-mount for the history DB
+/data/

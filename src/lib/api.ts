@@ -1,4 +1,9 @@
-import type { Report, RunSummary, CameraSummary } from "./types";
+import type {
+  Report,
+  RunSummary,
+  CameraSummary,
+  TrendResponse,
+} from "./types";
 
 // The FastAPI sidecar serves the static UI in production (same origin).
 // During `next dev` (port 3000) we target the sidecar on :5800 directly.
@@ -50,14 +55,29 @@ export const api = {
     request("/api/ptz", { method: "POST", body: JSON.stringify({ action, params }) }),
   presets: () => request<{ presets: { token: string; name: string | null }[] }>("/api/presets"),
 
-  history: (filter?: { cameraKey?: string; model?: string }) => {
+  history: (filter?: {
+    cameraKey?: string;
+    model?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
     const q = new URLSearchParams();
     if (filter?.cameraKey) q.set("camera_key", filter.cameraKey);
     if (filter?.model) q.set("model", filter.model);
+    if (filter?.limit != null) q.set("limit", String(filter.limit));
+    if (filter?.offset != null) q.set("offset", String(filter.offset));
     const qs = q.toString();
     return request<{ runs: RunSummary[] }>(`/api/history${qs ? `?${qs}` : ""}`);
   },
   historyCameras: () => request<{ cameras: CameraSummary[] }>("/api/history/cameras"),
+  historyTrend: (filter?: { cameraKey?: string; model?: string; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (filter?.cameraKey) q.set("camera_key", filter.cameraKey);
+    if (filter?.model) q.set("model", filter.model);
+    if (filter?.limit != null) q.set("limit", String(filter.limit));
+    const qs = q.toString();
+    return request<TrendResponse>(`/api/history/trend${qs ? `?${qs}` : ""}`);
+  },
   historyRun: (runId: string) => request<Report>(`/api/history/${runId}`),
   deleteHistoryRun: (runId: string) =>
     request(`/api/history/${runId}`, { method: "DELETE" }),

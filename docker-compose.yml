@@ -8,6 +8,11 @@ services:
       # default (same as GO2RTC_API) works from the same machine; set this to
       # http://<server-ip>:1984 when opening the console from another device.
       - GO2RTC_PUBLIC_URL=${GO2RTC_PUBLIC_URL:-http://127.0.0.1:1984}
+    volumes:
+      # Persist the run-history SQLite DB across container rebuilds/restarts.
+      # Bind mount so it's visible on the host for backup; swap for a named
+      # volume (onvif-data:/app/backend/data) if you prefer Docker-managed storage.
+      - ./data:/app/backend/data
     restart: unless-stopped
 
   # Optional WebRTC relay for the live view. Remove this service to fall back

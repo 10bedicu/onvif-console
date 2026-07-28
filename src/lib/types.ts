@@ -144,3 +144,16 @@ export type CameraSummary = {
   run_count: number;
   last_run: number | null;
 };
+
+export type TrendRun = {
+  run_id: string;
+  finished_at: number;
+  device: string;
+  summary: Record<string, number>;
+  tests: Record<string, TestStatus>; // testId -> status
+};
+
+export type TrendResponse = {
+  tests: { id: string; name: string }[]; // canonical order
+  runs: TrendRun[]; // newest first
+};

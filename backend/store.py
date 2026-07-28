@@ -180,6 +180,45 @@ class HistoryStore:
                 "SELECT report_json FROM runs WHERE run_id=?", (run_id,)).fetchone()
         return json.loads(row["report_json"]) if row else None
 
+    def trend(self, *, camera_key: str | None = None, model: str | None = None,
+              limit: int = 20) -> list[dict]:
+        """Recent runs with their per-test pass/fail map, newest first — feeds
+        the trend / regression view. Parses report_json for the small window
+        of runs shown (kept off the main list query, which stays column-only)."""
+        sql = ["""SELECT r.run_id, r.finished_at, r.report_json,
+                         c.manufacturer, c.model
+                  FROM runs r JOIN cameras c ON c.camera_key = r.camera_key"""]
+        where, params = [], []
+        if camera_key:
+            where.append("r.camera_key = ?")
+            params.append(camera_key)
+        if model:
+            where.append("c.model = ?")
+            params.append(model)
+        if where:
+            sql.append("WHERE " + " AND ".join(where))
+        sql.append("ORDER BY r.finished_at DESC LIMIT ?")
+        params.append(limit)
+        with self._lock:
+            rows = self._conn.execute(" ".join(sql), params).fetchall()
+
+        out = []
+        for r in rows:
+            try:
+                report = json.loads(r["report_json"])
+            except Exception:
+                continue
+            tests = {res.get("id"): res.get("status")
+                     for res in (report.get("results") or [])}
+            out.append({
+                "run_id": r["run_id"],
+                "finished_at": r["finished_at"],
+                "device": f"{r['manufacturer'] or '?'} {r['model'] or '?'}".strip(),
+                "summary": report.get("summary") or {},
+                "tests": tests,
+            })
+        return out
+
     def _run_summary(self, r: sqlite3.Row) -> dict:
         d = dict(r)
         d["device"] = f"{r['manufacturer'] or '?'} {r['model'] or '?'}".strip()

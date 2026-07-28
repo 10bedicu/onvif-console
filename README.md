@@ -36,7 +36,10 @@ and export a printable conformance report.
   result, expandable into a full log
 - **Report page** — PASS/FAIL verdict, capability matrix, per-test checks,
   full command log; print-optimized (browser print → PDF) and JSON export
-- **Run history** — past runs stored per camera in the browser (localStorage)
+- **Run history** — every run is persisted server-side (SQLite), grouped by
+  camera. Filter by model or by individual unit, page through past runs, and
+  see a **trend matrix** of per-test pass/fail across recent runs to catch
+  regressions. Reports open by permalink and survive browser/device changes
 
 ## Screenshots
 
@@ -179,6 +182,33 @@ The UI is fully static (`out/`) and the sidecar serves it — a single port
 as-is: the console has no authentication of its own and relays camera
 credentials you type into it.
 
+### Run-history persistence
+
+Runs are stored in a SQLite database. Location, by deployment:
+
+| Deployment | DB path | Persistence |
+|------------|---------|-------------|
+| `start.sh` / bare metal | `backend/data/onvif_console.db` | on the host filesystem (gitignored) |
+| Docker Compose | `/app/backend/data/…` → bind-mounted to `./data` on the host | survives `up --build` / restarts |
+
+- Override the path anywhere with `ONVIF_DB_PATH=/some/dir/history.db`.
+- Compose uses a bind mount (`./data`) so the DB is easy to back up; swap it for
+  a named volume (`onvif-data:/app/backend/data`) if you prefer Docker-managed
+  storage. **Removing the volume/`./data` deletes all history.**
+- Back up by copying the `.db` file while the server is stopped (or use
+  `sqlite3 onvif_console.db ".backup backup.db"` live).
+
+### History API (used by the UI, also scriptable)
+
+| Method & path | Purpose |
+|---------------|---------|
+| `GET /api/history?camera_key=&model=&limit=&offset=` | paged run summaries |
+| `GET /api/history/cameras` | distinct cameras tested, with run counts |
+| `GET /api/history/trend?camera_key=&model=&limit=` | per-test status across recent runs |
+| `GET /api/history/{run_id}` | full stored report |
+| `DELETE /api/history/{run_id}` | delete a run |
+| `POST /api/history/import` | bulk-insert reports (`{ "reports": [...] }`) |
+
 ## pytest suite (headless)
 
 The same vendor-neutral tests exist as a plain pytest suite for CI/scripted
@@ -197,12 +227,14 @@ cd backend
 ```
 ├── src/                  # Next.js UI (careui design system)
 │   ├── app/              # console (/), report (/report), history (/history)
-│   ├── components/       # console panels, report view, ui primitives
-│   └── lib/              # api client, SSE store, types, run history
+│   ├── components/       # console panels, report view, history trend, ui primitives
+│   └── lib/              # api client, SSE store, types, localStorage→backend migration
 ├── backend/
 │   ├── onvif_ptz.py      # vendor-neutral ONVIF PTZ client (capability discovery)
-│   ├── engine.py         # test registry + event bus + instrumented client
-│   ├── server.py         # FastAPI: REST + SSE + snapshot proxy + go2rtc + static UI
+│   ├── engine.py         # test registry + event bus + instrumented client (auto-persists runs)
+│   ├── store.py          # SQLite run-history store (cameras + runs, stdlib sqlite3)
+│   ├── server.py         # FastAPI: REST + SSE + history + snapshot proxy + go2rtc + static UI
+│   ├── data/             # SQLite DB lives here (gitignored)
 │   ├── tests/            # pytest suite
 │   ├── run_tests.py      # exploratory CLI runner
 │   └── probe.py          # capability probe
@@ -229,3 +261,7 @@ Chrome against a running, connected console).
   (`MoveStatus` tracking for continuous moves is optional in ONVIF).
 - **A short settle before position reads** absorbs encoder-readback lag some
   cameras show right after `MoveStatus` flips to `IDLE`.
+
+## Further docs
+
+- [Run history: backend persistence — change, migration & infra guide](docs/run-history-backend.md)

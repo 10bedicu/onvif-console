@@ -1,43 +1,106 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import type { CameraSummary, RunSummary } from "@/lib/types";
+import type { CameraSummary, RunSummary, TrendResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { TrendPanel } from "@/components/history/trend-panel";
 import { ArrowLeft, History, Loader2, Trash2, Video } from "lucide-react";
+
+const PAGE = 25;
 
 export default function HistoryPage() {
   const [cameras, setCameras] = useState<CameraSummary[]>([]);
-  const [runs, setRuns] = useState<RunSummary[]>([]);
-  const [filter, setFilter] = useState<string | null>(null); // camera_key
-  const [loading, setLoading] = useState(true);
+  const [model, setModel] = useState<string | null>(null);
+  const [cameraKey, setCameraKey] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [{ cameras }, { runs }] = await Promise.all([
-        api.historyCameras(),
-        api.history(filter ? { cameraKey: filter } : undefined),
-      ]);
-      setCameras(cameras);
-      setRuns(runs);
-    } catch {
-      setCameras([]);
-      setRuns([]);
-    } finally {
-      setLoading(false);
+  const [runs, setRuns] = useState<RunSummary[]>([]);
+  const [trend, setTrend] = useState<TrendResponse | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // distinct models (with aggregated run counts) derived from the camera list
+  const models = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of cameras) {
+      if (!c.model) continue;
+      m.set(c.model, (m.get(c.model) ?? 0) + c.run_count);
     }
-  }, [filter]);
+    return [...m.entries()].map(([name, runCount]) => ({ name, runCount }));
+  }, [cameras]);
+
+  // cameras in the current model scope
+  const scopedCameras = useMemo(
+    () => (model ? cameras.filter((c) => c.model === model) : cameras),
+    [cameras, model],
+  );
+
+  const filter = useMemo(
+    () => (cameraKey ? { cameraKey } : model ? { model } : {}),
+    [cameraKey, model],
+  );
+  const filterKey = `${model ?? ""}|${cameraKey ?? ""}`;
 
   useEffect(() => {
-    load();
-  }, [load]);
+    api.historyCameras().then(({ cameras }) => setCameras(cameras)).catch(() => {});
+  }, []);
+
+  // (Re)load first page whenever the filter changes.
+  useEffect(() => {
+    let stale = false;
+    setLoading(true);
+    setRuns([]);
+    setOffset(0);
+    (async () => {
+      try {
+        const [{ runs }, trend] = await Promise.all([
+          api.history({ ...filter, limit: PAGE, offset: 0 }),
+          model || cameraKey
+            ? api.historyTrend({ ...filter, limit: 20 })
+            : Promise.resolve(null),
+        ]);
+        if (stale) return;
+        setRuns(runs);
+        setHasMore(runs.length === PAGE);
+        setOffset(runs.length);
+        setTrend(trend);
+      } finally {
+        if (!stale) setLoading(false);
+      }
+    })();
+    return () => {
+      stale = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey]);
+
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    try {
+      const { runs: more } = await api.history({ ...filter, limit: PAGE, offset });
+      setRuns((prev) => [...prev, ...more]);
+      setHasMore(more.length === PAGE);
+      setOffset((o) => o + more.length);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [filter, offset]);
 
   const remove = async (runId: string) => {
     await api.deleteHistoryRun(runId).catch(() => {});
-    load();
+    setRuns((prev) => prev.filter((r) => r.run_id !== runId));
+    api.historyCameras().then(({ cameras }) => setCameras(cameras)).catch(() => {});
+    if (model || cameraKey)
+      api.historyTrend({ ...filter, limit: 20 }).then(setTrend).catch(() => {});
+  };
+
+  const pickModel = (m: string | null) => {
+    setModel(m);
+    setCameraKey(null);
   };
 
   return (
@@ -55,33 +118,56 @@ export default function HistoryPage() {
         </h1>
       </div>
 
-      {/* Camera filter — distinct cameras tested so far */}
-      {cameras.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-1.5">
-          <FilterChip active={filter === null} onClick={() => setFilter(null)}>
-            All cameras
+      {/* Model filter (distinct models tested so far) */}
+      {models.length > 1 && (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[11px] font-medium tracking-wide text-placeholder-foreground uppercase">
+            Model
+          </span>
+          <FilterChip active={model === null} onClick={() => pickModel(null)}>
+            All models
           </FilterChip>
-          {cameras.map((c) => (
+          {models.map((m) => (
             <FilterChip
-              key={c.camera_key}
-              active={filter === c.camera_key}
-              onClick={() => setFilter(c.camera_key)}
+              key={m.name}
+              active={model === m.name}
+              onClick={() => pickModel(m.name)}
             >
-              <Video className="size-3" />
-              {c.manufacturer} {c.model}
-              <span className="text-placeholder-foreground">
-                {c.serial ? `· ${c.serial}` : `· ${c.last_host}`}
-              </span>
-              <span className="ml-0.5 rounded-full bg-muted px-1.5 text-[10px] font-semibold">
-                {c.run_count}
-              </span>
+              {m.name}
+              <Count>{m.runCount}</Count>
             </FilterChip>
           ))}
         </div>
       )}
 
+      {/* Camera filter (individual units, scoped to the selected model) */}
+      {scopedCameras.length > 1 && (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[11px] font-medium tracking-wide text-placeholder-foreground uppercase">
+            Camera
+          </span>
+          <FilterChip active={cameraKey === null} onClick={() => setCameraKey(null)}>
+            All{model ? ` ${model}` : ""}
+          </FilterChip>
+          {scopedCameras.map((c) => (
+            <FilterChip
+              key={c.camera_key}
+              active={cameraKey === c.camera_key}
+              onClick={() => setCameraKey(c.camera_key)}
+            >
+              <Video className="size-3" />
+              {model ? "" : `${c.model} · `}
+              {c.serial ?? c.last_host}
+              <Count>{c.run_count}</Count>
+            </FilterChip>
+          ))}
+        </div>
+      )}
+
+      {trend && <TrendPanel trend={trend} />}
+
       {loading ? (
-        <div className="flex min-h-[40vh] items-center justify-center gap-2 text-soft-foreground">
+        <div className="flex min-h-[30vh] items-center justify-center gap-2 text-soft-foreground">
           <Loader2 className="size-4 animate-spin" /> Loading history…
         </div>
       ) : runs.length === 0 ? (
@@ -113,7 +199,8 @@ export default function HistoryPage() {
                 >
                   <div className="truncate text-sm font-medium">{r.device}</div>
                   <div className="font-mono text-xs text-soft-foreground">
-                    {r.last_host} · {new Date(r.finished_at * 1000).toLocaleString()}
+                    {r.last_host} ·{" "}
+                    {new Date(r.finished_at * 1000).toLocaleString()}
                   </div>
                 </Link>
                 <span className="shrink-0 font-mono text-xs text-placeholder-foreground">
@@ -130,6 +217,19 @@ export default function HistoryPage() {
               </div>
             );
           })}
+
+          {hasMore && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2 self-center"
+              onClick={loadMore}
+              disabled={loadingMore}
+            >
+              {loadingMore && <Loader2 className="size-3 animate-spin" data-icon="inline-start" />}
+              Load more
+            </Button>
+          )}
         </div>
       )}
     </div>
@@ -157,5 +257,13 @@ function FilterChip({
     >
       {children}
     </button>
+  );
+}
+
+function Count({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="ml-0.5 rounded-full bg-muted px-1.5 text-[10px] font-semibold text-muted-foreground">
+      {children}
+    </span>
   );
 }
