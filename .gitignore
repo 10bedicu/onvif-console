@@ -16,3 +16,7 @@ backend/bin/
 
 # editors
 .claude/
+
+# runtime data
+backend/data/
+backend/bin/go2rtc

@@ -1,3 +1,5 @@
+import type { Report, RunSummary, CameraSummary } from "./types";
+
 // The FastAPI sidecar serves the static UI in production (same origin).
 // During `next dev` (port 3000) we target the sidecar on :5800 directly.
 export const API_BASE =
@@ -47,6 +49,23 @@ export const api = {
   ptz: (action: string, params: Record<string, unknown> = {}) =>
     request("/api/ptz", { method: "POST", body: JSON.stringify({ action, params }) }),
   presets: () => request<{ presets: { token: string; name: string | null }[] }>("/api/presets"),
+
+  history: (filter?: { cameraKey?: string; model?: string }) => {
+    const q = new URLSearchParams();
+    if (filter?.cameraKey) q.set("camera_key", filter.cameraKey);
+    if (filter?.model) q.set("model", filter.model);
+    const qs = q.toString();
+    return request<{ runs: RunSummary[] }>(`/api/history${qs ? `?${qs}` : ""}`);
+  },
+  historyCameras: () => request<{ cameras: CameraSummary[] }>("/api/history/cameras"),
+  historyRun: (runId: string) => request<Report>(`/api/history/${runId}`),
+  deleteHistoryRun: (runId: string) =>
+    request(`/api/history/${runId}`, { method: "DELETE" }),
+  importHistory: (reports: Report[]) =>
+    request<{ imported: number }>("/api/history/import", {
+      method: "POST",
+      body: JSON.stringify({ reports }),
+    }),
 };
 
 export const eventsUrl = () => `${API_BASE}/api/events`;

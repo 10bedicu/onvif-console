@@ -30,6 +30,7 @@ from pydantic import BaseModel
 
 import engine as engine_mod
 from engine import Engine, TESTS
+from store import HistoryStore
 
 # go2rtc relay: API endpoint the sidecar talks to, and the URL the *browser*
 # uses for the WebRTC embed (differs when go2rtc runs in another container).
@@ -46,13 +47,21 @@ app.add_middleware(
 )
 
 _engine: Engine | None = None
+_store: HistoryStore | None = None
 _go2rtc_proc: subprocess.Popen | None = None
+
+
+def store() -> HistoryStore:
+    global _store
+    if _store is None:
+        _store = HistoryStore()
+    return _store
 
 
 def engine() -> Engine:
     global _engine
     if _engine is None:
-        _engine = Engine(asyncio.get_event_loop())
+        _engine = Engine(asyncio.get_event_loop(), store=store())
     return _engine
 
 
@@ -166,6 +175,56 @@ def report():
     if not r:
         raise HTTPException(status_code=404, detail="no run yet")
     return r
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# History (persisted runs, grouped by camera)
+# ──────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/history")
+def history(camera_key: str | None = None, model: str | None = None,
+            limit: int = 100, offset: int = 0):
+    return {"runs": store().list_runs(camera_key=camera_key, model=model,
+                                      limit=min(limit, 500), offset=offset)}
+
+
+@app.get("/api/history/cameras")
+def history_cameras():
+    return {"cameras": store().list_cameras()}
+
+
+@app.get("/api/history/{run_id}")
+def history_run(run_id: str):
+    r = store().get_run(run_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="run not found")
+    return r
+
+
+@app.delete("/api/history/{run_id}")
+def history_delete(run_id: str):
+    if not store().delete_run(run_id):
+        raise HTTPException(status_code=404, detail="run not found")
+    return {"ok": True}
+
+
+class ImportBody(BaseModel):
+    reports: list[dict]
+
+
+@app.post("/api/history/import")
+def history_import(body: ImportBody):
+    """One-time migration of runs the browser saved in localStorage."""
+    imported = 0
+    for report in body.reports:
+        if not report.get("id"):
+            continue
+        try:
+            store().save_run(report, report.get("connection"))
+            imported += 1
+        except Exception:
+            pass
+    return {"imported": imported}
 
 
 # ──────────────────────────────────────────────────────────────────────────
