@@ -532,8 +532,9 @@ TESTS_BY_ID = {t.id: t for t in TESTS}
 # ──────────────────────────────────────────────────────────────────────────
 
 class Engine:
-    def __init__(self, loop: asyncio.AbstractEventLoop):
+    def __init__(self, loop: asyncio.AbstractEventLoop, store=None):
         self.bus = EventBus(loop)
+        self.store = store    # HistoryStore | None; runs auto-persist when set
         self.client: InstrumentedPTZClient | None = None
         self.poller_client: PTZClient | None = None
         self.connection: dict | None = None
@@ -714,6 +715,15 @@ class Engine:
                 pass
 
         self.run_meta["finishedAt"] = time.time()
+
+        # Persist the finished run server-side (survives browser/tab closing).
+        if self.store is not None:
+            try:
+                self.store.save_run(self.report(), self.connection)
+            except Exception as e:
+                self.bus.publish({"type": "log", "level": "error",
+                                  "msg": f"Failed to save run history: {e}"})
+
         self.bus.publish({"type": "run", "status": "finished",
                           "runId": self.run_meta["id"],
                           "summary": self.summary()})

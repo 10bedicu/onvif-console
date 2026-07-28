@@ -9,7 +9,7 @@ import {
   useRef,
 } from "react";
 import { api, eventsUrl } from "./api";
-import { saveRun } from "./history";
+import { migrateLocalHistory } from "./history";
 import type {
   CallEvent,
   Connection,
@@ -182,6 +182,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const phaseRef = useRef(state.phase);
   phaseRef.current = state.phase;
 
+  // One-time migration of runs older builds saved in localStorage.
+  useEffect(() => {
+    migrateLocalHistory();
+  }, []);
+
   const openEvents = useCallback(() => {
     esRef.current?.close();
     const es = new EventSource(eventsUrl());
@@ -231,13 +236,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // When a run finishes, fetch the full report and persist to history.
+  // When a run finishes, refresh the in-memory report for the report page.
+  // (The backend persists the run to history automatically on completion.)
   const runningRef = useRef(state.running);
   useEffect(() => {
     if (runningRef.current && !state.running) {
-      refreshReport().then((r) => {
-        if (r && r.finishedAt) saveRun(r);
-      });
+      refreshReport();
     }
     runningRef.current = state.running;
   }, [state.running, refreshReport]);

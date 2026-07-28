@@ -4,7 +4,6 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { getRun } from "@/lib/history";
 import type { Report } from "@/lib/types";
 import { ReportView } from "@/components/report/report-view";
 import { Button } from "@/components/ui/button";
@@ -17,18 +16,10 @@ function ReportLoader() {
   const [state, setState] = useState<"loading" | "ready" | "missing">("loading");
 
   useEffect(() => {
-    if (runId) {
-      const entry = getRun(runId);
-      if (entry) {
-        setReport(entry.report);
-        setState("ready");
-      } else {
-        setState("missing");
-      }
-      return;
-    }
-    api
-      .report()
+    // A specific run id loads from persisted history; otherwise show the
+    // current in-memory run.
+    const load = runId ? api.historyRun(runId) : api.report();
+    load
       .then((r) => {
         setReport(r as Report);
         setState("ready");

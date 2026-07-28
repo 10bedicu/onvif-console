@@ -16,3 +16,10 @@ backend/bin/
 
 # editors
 .claude/
+
+# runtime data
+backend/data/
+backend/bin/go2rtc
+
+# docker-compose bind-mount for the history DB
+/data/

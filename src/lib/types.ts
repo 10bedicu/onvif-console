@@ -113,3 +113,47 @@ export type Report = {
   tests: TestMeta[];
   calls: CallEvent[];
 };
+
+// Persisted-history shapes (from the backend store).
+export type RunSummary = {
+  run_id: string;
+  camera_key: string;
+  started_at: number;
+  finished_at: number;
+  duration_ms: number | null;
+  passed: number;
+  failed: number;
+  skipped: number;
+  error: number;
+  total: number;
+  manufacturer: string | null;
+  model: string | null;
+  serial: string | null;
+  last_host: string | null;
+  device: string;
+};
+
+export type CameraSummary = {
+  camera_key: string;
+  manufacturer: string | null;
+  model: string | null;
+  serial: string | null;
+  last_firmware: string | null;
+  last_host: string | null;
+  last_seen: number | null;
+  run_count: number;
+  last_run: number | null;
+};
+
+export type TrendRun = {
+  run_id: string;
+  finished_at: number;
+  device: string;
+  summary: Record<string, number>;
+  tests: Record<string, TestStatus>; // testId -> status
+};
+
+export type TrendResponse = {
+  tests: { id: string; name: string }[]; // canonical order
+  runs: TrendRun[]; // newest first
+};
